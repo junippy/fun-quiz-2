@@ -338,22 +338,31 @@ function submitAnswer() {
       feedbackImage.src = question.hintImage;
       feedbackImage.style.display = "block";
     }
-    return;
-  }
-
-  // === Log answer only once ===
-  if (!question.loggedAnswer) {
+    // Log this answer attempt as well
     userAnswers.push({
       questionIndex: currentQuestionIndex,
       questionText: question.question,
       userAnswer: userAnswer,
       acceptedAnswers,
       isCorrect,
-      questionType: "text"
+      questionType: "text",
+      attemptNumber: attemptCount + 1
     });
-    question.loggedAnswer = true;
     localStorage.setItem("userAnswers", JSON.stringify(userAnswers));
+    return;
   }
+
+  // === Log every answer attempt ===
+  userAnswers.push({
+    questionIndex: currentQuestionIndex,
+    questionText: question.question,
+    userAnswer: userAnswer,
+    acceptedAnswers,
+    isCorrect,
+    questionType: "text",
+    attemptNumber: attemptCount + 1
+  });
+  localStorage.setItem("userAnswers", JSON.stringify(userAnswers));
 
   // === Show feedback ===
   if (isCorrect) {
