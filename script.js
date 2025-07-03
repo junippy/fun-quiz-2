@@ -1,13 +1,13 @@
 // --- Firebase Initialization (shared for all sections) ---
 if (typeof firebase !== 'undefined' && firebase && firebase.apps && firebase.apps.length === 0) {
   firebase.initializeApp({
-    apiKey: "AIzaSyCDlykaXg7KdQPv3jeCOrnRV1Z_6P1n5S0",
-    authDomain: "funquiz-f5177.firebaseapp.com",
-    projectId: "funquiz-f5177",
-    storageBucket: "funquiz-f5177.appspot.com",
-    messagingSenderId: "243832133348",
-    appId: "1:243832133348:web:03d6746d63388112417ef1",
-    measurementId: "G-RG453ZV61K"
+  apiKey: "AIzaSyBneb3HUoPCc72cRt2gZDFKKSiTXL5EuM8",
+  authDomain: "fun-quiz-d9edb.firebaseapp.com",
+  projectId: "fun-quiz-d9edb",
+  storageBucket: "fun-quiz-d9edb.firebasestorage.app",
+  messagingSenderId: "219654930663",
+  appId: "1:219654930663:web:568ec7d07863238440e242",
+  measurementId: "G-B6Q3RVKNZZ"
   });
 }
 // Globally initialize Firestore and attach to window.db if not already present
