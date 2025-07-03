@@ -424,6 +424,8 @@ const firebaseConfig = {
             feedbackImage.src = question.hintImage;
             feedbackImage.style.display = "block";
           }
+          // Log this answer attempt as well
+          logAndSendAnswer(userAnswer, false, question, "text");
           return;
         }
 
@@ -437,7 +439,9 @@ const firebaseConfig = {
             "di-giorno",
           ];
           const userAns = userAnswer.trim().toLowerCase();
-          if (digiornoAnswers.includes(userAns)) {
+          const isCorrect = digiornoAnswers.includes(userAns);
+          logAndSendAnswer(userAnswer, isCorrect, question, "text");
+          if (isCorrect) {
             feedback.textContent = `✅ Correct! It's Digiorno!`;
             suggestionBox.style.display = "none";
             let answeredQuestions = JSON.parse(
@@ -454,7 +458,6 @@ const firebaseConfig = {
               );
               question.answeredCorrectly = true;
             }
-            // Always show correct answer(s)
             correctAnswerDiv.textContent = `Correct answer(s): digiorno`;
             correctAnswerDiv.style.display = "block";
             if (question.feedbackImage) {
@@ -463,11 +466,9 @@ const firebaseConfig = {
             }
             nextButton.style.display = "inline-block";
             hasSuggested = false;
-            // Reset attemptCount for next question
             attemptCount = 0;
             return;
           } else {
-            // Track attempts for this question only
             if (typeof window.digiornoAttemptCount === "undefined") {
               window.digiornoAttemptCount = 1;
             } else {
@@ -483,9 +484,7 @@ const firebaseConfig = {
                 feedbackImage.src = question.feedbackImage;
                 feedbackImage.style.display = "block";
               }
-              // Reset for next time this question is loaded
               window.digiornoAttemptCount = 0;
-              // Reset attemptCount for next question
               attemptCount = 0;
             } else {
               feedback.textContent = "❌ Incorrect. Try again!";
@@ -501,28 +500,13 @@ const firebaseConfig = {
 
         const isCorrect = acceptedAnswers.includes(userAnswer.toLowerCase());
 
-        // === Log answer only once ===
-        if (!question.loggedAnswer) {
-          userAnswers.push({
-            questionIndex: currentQuestionIndex,
-            questionText: question.question,
-            userAnswer: userAnswer,
-            acceptedAnswers,
-            isCorrect,
-            questionType: "text",
-          });
-          question.loggedAnswer = true;
+        // Always log every answer attempt
+        logAndSendAnswer(userAnswer, isCorrect, question, "text", acceptedAnswers);
 
-          // 💾 Save to localStorage
-          localStorage.setItem("userAnswers", JSON.stringify(userAnswers));
-        }
-
-        // === Show feedback ===
         if (isCorrect) {
           feedback.textContent = "✅ Correct!";
           suggestionBox.style.display = "none";
 
-          // Prevent infinite score abuse
           let answeredQuestions = JSON.parse(
             localStorage.getItem("answeredQuestions") || "[]"
           );
@@ -538,7 +522,6 @@ const firebaseConfig = {
             question.answeredCorrectly = true;
           }
 
-          // Always show correct answer(s)
           correctAnswerDiv.textContent = `Correct answer(s): ${acceptedAnswers.join(", ")}`;
           correctAnswerDiv.style.display = "block";
           if (question.feedbackImage) {
@@ -547,14 +530,12 @@ const firebaseConfig = {
           }
           nextButton.style.display = "inline-block";
           hasSuggested = false;
-          // Reset attemptCount for next question
           attemptCount = 0;
         } else {
           attemptCount = typeof attemptCount === "undefined" ? 1 : attemptCount + 1;
           if (attemptCount >= 2) {
             feedback.textContent = "❌ Incorrect.";
             suggestionBox.style.display = "none";
-
             correctAnswerDiv.textContent = `Correct answer(s): ${acceptedAnswers.join(", ")}`;
             correctAnswerDiv.style.display = "block";
             nextButton.style.display = "inline-block";
@@ -562,11 +543,36 @@ const firebaseConfig = {
               feedbackImage.src = question.feedbackImage;
               feedbackImage.style.display = "block";
             }
-            // Reset attemptCount for next question
             attemptCount = 0;
           } else {
             feedback.textContent = "❌ Incorrect. Try again!";
           }
+        }
+      }
+
+      // Helper to log and send every answer attempt
+      function logAndSendAnswer(userAnswer, isCorrect, question, questionType, acceptedAnswers) {
+        const prevAttempts = (window.userAnswers || []).filter(a => a.questionIndex === currentQuestionIndex).length;
+        const thisAttemptNumber = prevAttempts + 1;
+        const answerObj = {
+          questionIndex: currentQuestionIndex,
+          questionText: question.question,
+          userAnswer: userAnswer,
+          acceptedAnswers: acceptedAnswers || [],
+          isCorrect,
+          questionType,
+          attemptNumber: thisAttemptNumber,
+          timestamp: new Date().toISOString(),
+          playerName: window.playerName || "",
+          playerEmail: window.playerEmail || ""
+        };
+        window.userAnswers = window.userAnswers || [];
+        window.userAnswers.push(answerObj);
+        localStorage.setItem("userAnswers", JSON.stringify(window.userAnswers));
+        if (firebase.auth().currentUser) {
+          firebase.firestore().collection("userAnswers").add(answerObj).catch((err) => {
+            console.error("Error saving individual answer to Firestore:", err);
+          });
         }
       }
     </script>
