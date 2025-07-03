@@ -323,13 +323,38 @@ function submitAnswer() {
 
   if (question.type === "click") return;
 
-  // === Lettuce easter egg ===
-
   const acceptedAnswers = Array.isArray(question.answer)
     ? question.answer.map((a) => a.trim().toLowerCase())
     : [question.answer.trim().toLowerCase()];
 
   const isCorrect = acceptedAnswers.some(ans => userAnswer.toLowerCase().includes(ans));
+
+  // Count previous attempts for this question
+  const prevAttempts = userAnswers.filter(a => a.questionIndex === currentQuestionIndex).length;
+  const thisAttemptNumber = prevAttempts + 1;
+
+  // Always log every answer attempt
+  const answerObj = {
+    questionIndex: currentQuestionIndex,
+    questionText: question.question,
+    userAnswer: userAnswer,
+    acceptedAnswers,
+    isCorrect,
+    questionType: "text",
+    attemptNumber: thisAttemptNumber,
+    timestamp: new Date().toISOString(),
+    playerName: playerName,
+    playerEmail: playerEmail
+  };
+  userAnswers.push(answerObj);
+  localStorage.setItem("userAnswers", JSON.stringify(userAnswers));
+
+  // Immediately submit this answer attempt to Firestore
+  if (firebase.auth().currentUser) {
+    db.collection("userAnswers").add(answerObj).catch((err) => {
+      console.error("Error saving individual answer to Firestore:", err);
+    });
+  }
 
   // === Special case for question 0 ===
   if (currentQuestionIndex === 0 && userAnswer.toLowerCase() === "a") {
@@ -338,31 +363,8 @@ function submitAnswer() {
       feedbackImage.src = question.hintImage;
       feedbackImage.style.display = "block";
     }
-    // Log this answer attempt as well
-    userAnswers.push({
-      questionIndex: currentQuestionIndex,
-      questionText: question.question,
-      userAnswer: userAnswer,
-      acceptedAnswers,
-      isCorrect,
-      questionType: "text",
-      attemptNumber: attemptCount + 1
-    });
-    localStorage.setItem("userAnswers", JSON.stringify(userAnswers));
     return;
   }
-
-  // === Log every answer attempt ===
-  userAnswers.push({
-    questionIndex: currentQuestionIndex,
-    questionText: question.question,
-    userAnswer: userAnswer,
-    acceptedAnswers,
-    isCorrect,
-    questionType: "text",
-    attemptNumber: attemptCount + 1
-  });
-  localStorage.setItem("userAnswers", JSON.stringify(userAnswers));
 
   // === Show feedback ===
   if (isCorrect) {
