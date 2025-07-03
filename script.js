@@ -356,15 +356,6 @@ function submitAnswer() {
     });
   }
 
-  // === Special case for question 0 ===
-  if (currentQuestionIndex === 0 && userAnswer.toLowerCase() === "a") {
-    feedback.textContent = "HINT: It's not lettuce";
-    if (question.hintImage) {
-      feedbackImage.src = question.hintImage;
-      feedbackImage.style.display = "block";
-    }
-    return;
-  }
 
   // === Show feedback ===
   if (isCorrect) {
