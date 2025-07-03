@@ -400,13 +400,20 @@ const firebaseConfig = {
     </script>
     <script>
       function submitAnswer() {
+        // === DOM element checks ===
         const answerInput = document.getElementById("answer");
-        const userAnswer = answerInput.value.trim();
-        const question = questions[currentQuestionIndex];
         const feedback = document.getElementById("feedback");
         const feedbackImage = document.getElementById("feedback-image");
         const nextButton = document.getElementById("next-button");
         const correctAnswerDiv = document.getElementById("correct-answer");
+        const suggestionBox = document.getElementById("suggestion-box");
+        if (!answerInput || !feedback || !feedbackImage || !nextButton || !correctAnswerDiv || !suggestionBox) {
+          console.warn("Quiz UI elements missing, cannot submit answer.");
+          return;
+        }
+
+        const userAnswer = answerInput.value.trim();
+        const question = questions[currentQuestionIndex];
 
         feedback.innerHTML = "";
         feedbackImage.style.display = "none";
@@ -424,6 +431,16 @@ const firebaseConfig = {
             feedbackImage.src = question.hintImage;
             feedbackImage.style.display = "block";
           }
+          // Log this attempt as well
+          logAnswerAttempt({
+            questionIndex: currentQuestionIndex,
+            questionText: question.question,
+            userAnswer: userAnswer,
+            acceptedAnswers: ["digiorno"],
+            isCorrect: false,
+            attemptCount: (question.attemptCount = (question.attemptCount || 0) + 1),
+            questionType: "text",
+          });
           return;
         }
 
@@ -437,7 +454,25 @@ const firebaseConfig = {
             "di-giorno",
           ];
           const userAns = userAnswer.trim().toLowerCase();
-          if (digiornoAnswers.includes(userAns)) {
+          // Track attempts for this question only
+          if (typeof window.digiornoAttemptCount === "undefined") {
+            window.digiornoAttemptCount = 1;
+          } else {
+            window.digiornoAttemptCount++;
+          }
+          const digiornoAttemptCount = window.digiornoAttemptCount;
+          const isCorrect = digiornoAnswers.includes(userAns);
+          // === Log every attempt to Firestore ===
+          logAnswerAttempt({
+            questionIndex: currentQuestionIndex,
+            questionText: question.question,
+            userAnswer: userAnswer,
+            acceptedAnswers: digiornoAnswers,
+            isCorrect,
+            attemptCount: digiornoAttemptCount,
+            questionType: "text",
+          });
+          if (isCorrect) {
             feedback.textContent = `✅ Correct! It's Digiorno!`;
             suggestionBox.style.display = "none";
             let answeredQuestions = JSON.parse(
@@ -454,7 +489,6 @@ const firebaseConfig = {
               );
               question.answeredCorrectly = true;
             }
-            // Always show correct answer(s)
             correctAnswerDiv.textContent = `Correct answer(s): digiorno`;
             correctAnswerDiv.style.display = "block";
             if (question.feedbackImage) {
@@ -463,17 +497,11 @@ const firebaseConfig = {
             }
             nextButton.style.display = "inline-block";
             hasSuggested = false;
-            // Reset attemptCount for next question
-            attemptCount = 0;
+            window.digiornoAttemptCount = 0;
+            question.attemptCount = 0;
             return;
           } else {
-            // Track attempts for this question only
-            if (typeof window.digiornoAttemptCount === "undefined") {
-              window.digiornoAttemptCount = 1;
-            } else {
-              window.digiornoAttemptCount++;
-            }
-            if (window.digiornoAttemptCount >= 2) {
+            if (digiornoAttemptCount >= 2) {
               feedback.textContent = `It's not ${userAnswer}, it's Digiorno!`;
               suggestionBox.style.display = "none";
               correctAnswerDiv.textContent = `Correct answer(s): digiorno`;
@@ -483,10 +511,8 @@ const firebaseConfig = {
                 feedbackImage.src = question.feedbackImage;
                 feedbackImage.style.display = "block";
               }
-              // Reset for next time this question is loaded
               window.digiornoAttemptCount = 0;
-              // Reset attemptCount for next question
-              attemptCount = 0;
+              question.attemptCount = 0;
             } else {
               feedback.textContent = "❌ Incorrect. Try again!";
             }
@@ -498,31 +524,24 @@ const firebaseConfig = {
         const acceptedAnswers = Array.isArray(question.answer)
           ? question.answer.map((a) => a.trim().toLowerCase())
           : [question.answer.trim().toLowerCase()];
-
         const isCorrect = acceptedAnswers.includes(userAnswer.toLowerCase());
-
-        // === Log answer only once ===
-  const answerObj = {
-    questionIndex: currentQuestionIndex,
-    questionText: question.question,
-    userAnswer: userAnswer,
-    acceptedAnswers,
-    isCorrect,
-    questionType: "text",
-    attemptNumber: thisAttemptNumber,
-    timestamp: new Date().toISOString(),
-    playerName: playerName,
-    playerEmail: playerEmail
-  };
-  userAnswers.push(answerObj);
-  localStorage.setItem("userAnswers", JSON.stringify(userAnswers));
-
+        // Track attempt count per question
+        if (typeof question.attemptCount === "undefined") question.attemptCount = 1;
+        else question.attemptCount++;
+        // === Log every attempt to Firestore ===
+        logAnswerAttempt({
+          questionIndex: currentQuestionIndex,
+          questionText: question.question,
+          userAnswer: userAnswer,
+          acceptedAnswers,
+          isCorrect,
+          attemptCount: question.attemptCount,
+          questionType: "text",
+        });
         // === Show feedback ===
         if (isCorrect) {
           feedback.textContent = "✅ Correct!";
           suggestionBox.style.display = "none";
-
-          // Prevent infinite score abuse
           let answeredQuestions = JSON.parse(
             localStorage.getItem("answeredQuestions") || "[]"
           );
@@ -537,8 +556,6 @@ const firebaseConfig = {
             );
             question.answeredCorrectly = true;
           }
-
-          // Always show correct answer(s)
           correctAnswerDiv.textContent = `Correct answer(s): ${acceptedAnswers.join(", ")}`;
           correctAnswerDiv.style.display = "block";
           if (question.feedbackImage) {
@@ -547,14 +564,11 @@ const firebaseConfig = {
           }
           nextButton.style.display = "inline-block";
           hasSuggested = false;
-          // Reset attemptCount for next question
-          attemptCount = 0;
+          question.attemptCount = 0;
         } else {
-          attemptCount = typeof attemptCount === "undefined" ? 1 : attemptCount + 1;
-          if (attemptCount >= 2) {
+          if (question.attemptCount >= 2) {
             feedback.textContent = "❌ Incorrect.";
             suggestionBox.style.display = "none";
-
             correctAnswerDiv.textContent = `Correct answer(s): ${acceptedAnswers.join(", ")}`;
             correctAnswerDiv.style.display = "block";
             nextButton.style.display = "inline-block";
@@ -562,11 +576,64 @@ const firebaseConfig = {
               feedbackImage.src = question.feedbackImage;
               feedbackImage.style.display = "block";
             }
-            // Reset attemptCount for next question
-            attemptCount = 0;
+            question.attemptCount = 0;
           } else {
             feedback.textContent = "❌ Incorrect. Try again!";
           }
+        }
+      }
+
+      // Helper to log every answer attempt to Firestore and local array
+      function logAnswerAttempt({
+        questionIndex,
+        questionText,
+        userAnswer,
+        acceptedAnswers,
+        isCorrect,
+        attemptCount,
+        questionType,
+      }) {
+        // Add to local array
+        userAnswers.push({
+          questionIndex,
+          questionText,
+          userAnswer,
+          acceptedAnswers,
+          isCorrect,
+          attemptCount,
+          questionType,
+          timestamp: new Date().toISOString(),
+          playerName: localStorage.getItem("playerName") || "Anonymous",
+          playerEmail: localStorage.getItem("playerEmail") || "",
+        });
+        localStorage.setItem("userAnswers", JSON.stringify(userAnswers));
+        // Log to Firestore
+        try {
+          if (typeof firebase !== "undefined" && firebase.firestore) {
+            firebase
+              .firestore()
+              .collection("answerAttempts")
+              .add({
+                questionIndex,
+                questionText,
+                userAnswer,
+                acceptedAnswers,
+                isCorrect,
+                attemptCount,
+                questionType,
+                timestamp: new Date().toISOString(),
+                playerName: localStorage.getItem("playerName") || "Anonymous",
+                playerEmail: localStorage.getItem("playerEmail") || "",
+              })
+              .then(function (docRef) {
+                console.log("[Firestore] Answer attempt logged:", docRef.id);
+              })
+              .catch(function (error) {
+                console.warn("[Firestore] Error logging answer attempt:", error);
+              });
+          }
+        } catch (e) {
+          console.warn("[Firestore] Exception logging answer attempt:", e);
         }
       }
     </script>
